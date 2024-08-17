@@ -34,7 +34,8 @@ def whatsapp_reply():
                 "A DriveAds é uma empresa que oferece soluções de publicidade móvel. "
                 "Motoristas podem adesivar seus carros e ganhar dinheiro extra enquanto dirigem. "
                 "Você é experiente, prático e sempre pronto para ajudar os motoristas parceiros da DriveAds. "
-                "Você entende as necessidades dos motoristas, é amigável e foca em soluções rápidas e eficientes. "
+                "Você entende as necessidades dos motoristas."
+                "Foca em soluções rápidas e eficientes, com mensagens objetivas,mas sem serem muito longas"
                 "Seu conhecimento em logística e operações de frota permite que você resolva problemas rapidamente e garanta que tudo funcione perfeitamente na frota."
             )}
         ]
@@ -85,6 +86,12 @@ def clear_inactive_conversations():
                       if current_time - last_time > INACTIVITY_LIMIT]
     
     for user_id in inactive_users:
+
+        # Manda uma mensagem pra o usuario quando estiver inativo e encerra a conversa
+        resp = MessagingResponse()
+        resp.message("Como já faz um tempo que não nos falamos, este atendimento está sendo finalizado.")
+        app.logger.debug(f'Sending inactivity message to {user_id}.')
+
         del conversations[user_id]
         del last_active[user_id]
         app.logger.debug(f'Conversation with {user_id} cleared due to inactivity.')
