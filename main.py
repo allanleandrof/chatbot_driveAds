@@ -5,11 +5,20 @@ import openai
 import logging
 import time
 import threading
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
 
 # chave API
 openai.api_key = 'sk-svcacct-Gi8XCBOJRxZGwjUHVk7H-b3T5PdHtTzA6svnwje8FJESX1zl8-lkRu59dT3BlbkFJWnSEV7kWCOpbNw-1rMhtAftuS53RC8Q5S4755lVeTbLWPUU4OdX8c53VAA'
+
+# Inicialize o Firebase Admin SDK
+cred = credentials.Certificate('D:\\projetoChatBot\\chave\\automacao-do-atendimento-firebase-adminsdk-5pq7x-9c72b19ea1.json')
+firebase_admin.initialize_app(cred)
+
+# Inicialize o Firestore
+db = firestore.client()
 
 # debug
 logging.basicConfig(level=logging.DEBUG)
@@ -25,7 +34,7 @@ conversations = {}
 last_active = {}
 
 # Tempo limite para inatividade (em segundos)
-INACTIVITY_LIMIT = 300  # 5 minutos
+INACTIVITY_LIMIT = 40 # 5 minutos
 
 
 @app.route('/whatsapp', methods=['POST'])
@@ -40,18 +49,18 @@ def whatsapp_reply():
         conversations[user_id] = [
             {"role": "system", "content": (
                 "Você é Rodrigo, o Gestor de Frotas da empresa DriveAds. "
-                "Sempre que for requisitado se apresente. "
+                "Sempre que for requisitado se apresente. fale seu nome"
                 "A DriveAds é uma empresa que oferece soluções de publicidade móvel. "
                 "Motoristas podem adesivar seus carros e ganhar dinheiro extra enquanto dirigem. "
                 "Você é experiente, prático e sempre pronto para ajudar os motoristas parceiros da DriveAds. "
                 "Você entende as necessidades dos motoristas."
-                "Foca em soluções rápidas e eficientes, com mensagens objetivas,mas sem serem muito longas"
+                "Foca em soluções rápidas e eficientes, com mensagens objetivas, mas sem serem muito longas."
                 "Seu conhecimento em logística e operações de frota permite que você resolva problemas rapidamente e garanta que tudo funcione perfeitamente na frota."
                 "script/exemplo de como você deve se comportar, seja direto nas respostas e foque nos detalhes"
                 "Rodrigo: Olá! Eu sou o Rodrigo, seu gestor de frotas na DriveAds. Como posso te ajudar hoje?"
                 "Motorista: Gostaria de me cadastrar na plataforma da DriveAds."
                 "Rodrigo: Perfeito! Vamos começar. Para que eu possa te ajudar da melhor forma, poderia me informar o seu CPF?"
-                "(Motorista informa o CPF) Rodrigo não esqueça de verificar se o motorista já é cadastrado no inicio quando ele pedir para se cadastrar."
+                "(Motorista informa o CPF) Rodrigo não esqueça de verificar se o motorista já é cadastrado no inicio quando ele pedir para se cadastrar., e nesse momento quando vocÊ pedir um cpf só aceite um cpf de 11 digitos como resposta, se não mandar peça de novo"
                 "Rodrigo: Obrigado! Agora vou verificar se você já possui algum cadastro no sistema. Um momento, por favor... (Rodrigo verifica o sistema)"
                 "Rodrigo: Tudo certo! Você ainda não possui um cadastro completo na nossa plataforma. Vou te guiar pelo processo agora."
                 "Rodrigo: Primeiro, é necessário que você baixe o aplicativo da DriveAds na loja de aplicativos do seu celular. Você já fez isso?"
@@ -67,7 +76,12 @@ def whatsapp_reply():
                 "Rodrigo: Caso você precise de algo mais ou tenha qualquer dúvida, estou sempre por aqui para te ajudar. É só me chamar pelo app ou por esse canal. Estamos comprometidos em garantir que tudo funcione perfeitamente para você!"
                 "Motorista: Muito obrigado, Rodrigo!"
                 "Rodrigo: Por nada! Conte comigo e com a DriveAds para maximizar seus ganhos na plataforma. Até mais!"
-
+                "Ao mandar mensagem nao precisa digitar 'Rodrigo:' como estou mandando no script, você é rodrigo, ma sno inicio da conversa se apresente como rodrigo"
+                "Voce só deve responder perguntas relacionadas a DriveAds"
+                "quando começa a dar instruções informe completa"
+                "se o cpf existir, significa que a pessoa já tem cadastro no aplicativo, então caso ocorra só o ensine a fazer login no app"
+                "nao esqueça de sempre que for perguntado sobre fazer o cadastro no pela primeira vez na conversa, pergunta o cpf."
+                "evite ser repetitivo se não for necessário, analise bem a situação e seja preciso"
             )}
         ]
 
@@ -86,29 +100,45 @@ def whatsapp_reply():
     # Adicionar a mensagem do usuário ao histórico
     conversations[user_id].append({"role": "user", "content": incoming_msg})
 
-    try:
-        # Enviar todo o histórico de mensagens para o OpenAI
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=conversations[user_id]
-        )
+    # Verifica se a mensagem contém um CPF (número de 11 dígitos)
+    if len(incoming_msg) == 11 and incoming_msg.isdigit():
+        cpf = incoming_msg
 
-        resposta_texto = response.choices[0].message['content'].strip()
-        app.logger.debug(f'Response from OpenAI: {resposta_texto}')
+        # Função para verificar o CPF no Firestore
+        cpf_exists, nome_motorista = check_cpf_in_firestore(cpf)
+        if cpf_exists:
+            resposta_texto = (
+                f"O CPF informado já está cadastrado no sistema sob o nome de {nome_motorista}."
+                " Por favor, faça login no aplicativo DriveAds para mais informações."
+            )
+        else:
+            resposta_texto = (
+                "O CPF informado não está cadastrado. Vamos prosseguir com o seu cadastro."
+                " Por favor, siga as instruções para completar o cadastro."
+            )
+    else:
+        try:
+            # Enviar todo o histórico de mensagens para o OpenAI
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=conversations[user_id]
+            )
 
-        # Adicionar a resposta da IA ao histórico
-        conversations[user_id].append(
-            {"role": "assistant", "content": resposta_texto})
+            resposta_texto = response.choices[0].message['content'].strip()
+            app.logger.debug(f'Response from OpenAI: {resposta_texto}')
 
-        # Enviar a resposta para o usuário
-        resp = MessagingResponse()
-        resp.message(resposta_texto)
+            # Adicionar a resposta da IA ao histórico
+            conversations[user_id].append(
+                {"role": "assistant", "content": resposta_texto})
 
-        return str(resp)
+        except Exception as e:
+            app.logger.error(f'Error occurred: {str(e)}')
+            return jsonify({'status': 'error', 'message': str(e)}), 500
 
-    except Exception as e:
-        app.logger.error(f'Error occurred: {str(e)}')
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+    # Enviar a resposta para o usuário
+    resp = MessagingResponse()
+    resp.message(resposta_texto)
+    return str(resp)
 
 
 # Função para limpar conversas inativas
@@ -140,7 +170,6 @@ def clear_inactive_conversations():
         app.logger.debug(f'Conversation with {
                          user_id} cleared due to inactivity.')
 
-
 # A thread Chame a função clear_inactive_conversations periodicamente
 def schedule_inactivity_check():
     while True:
@@ -152,6 +181,16 @@ def schedule_inactivity_check():
 inactivity_thread = threading.Thread(
     target=schedule_inactivity_check, daemon=True)
 inactivity_thread.start()
+
+# Função para verificar se o CPF existe no Firestore e retornar o nome do motorista
+def check_cpf_in_firestore(cpf):
+    motorista_ref = db.collection('motoristas').where('cpf', '==', cpf).limit(1)
+    results = motorista_ref.stream()
+    for result in results:
+        data = result.to_dict()
+        nome_motorista = data.get('nome_motorista', 'Motorista')
+        return True, nome_motorista
+    return False, None
 
 if __name__ == '__main__':
     app.run(debug=True)
