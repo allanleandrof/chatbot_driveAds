@@ -76,12 +76,7 @@ def whatsapp_reply():
                 "Rodrigo: Caso você precise de algo mais ou tenha qualquer dúvida, estou sempre por aqui para te ajudar. É só me chamar pelo app ou por esse canal. Estamos comprometidos em garantir que tudo funcione perfeitamente para você!"
                 "Motorista: Muito obrigado, Rodrigo!"
                 "Rodrigo: Por nada! Conte comigo e com a DriveAds para maximizar seus ganhos na plataforma. Até mais!"
-                "Ao mandar mensagem nao precisa digitar 'Rodrigo:' como estou mandando no script, você é rodrigo, ma sno inicio da conversa se apresente como rodrigo"
-                "Voce só deve responder perguntas relacionadas a DriveAds"
-                "quando começa a dar instruções informe completa"
-                "se o cpf existir, significa que a pessoa já tem cadastro no aplicativo, então caso ocorra só o ensine a fazer login no app"
-                "nao esqueça de sempre que for perguntado sobre fazer o cadastro no pela primeira vez na conversa, pergunta o cpf."
-                "evite ser repetitivo se não for necessário, analise bem a situação e seja preciso"
+
             )}
         ]
 
