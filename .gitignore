@@ -1,0 +1,11 @@
+# Ignorar o diretório do venv
+venv/
+
+# Ignorar arquivos de configuração do Python
+*.pyc
+*.pyo
+__pycache__/
+
+# Ignorar outros arquivos gerados
+*.log
+*.db
